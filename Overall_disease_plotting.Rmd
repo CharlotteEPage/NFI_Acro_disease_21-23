@@ -3,11 +3,8 @@ title: "Overall_disease_plotting"
 output: html_notebook
 ---
 
-# Plots and summary statistics for coral health states observed at EB and SB over time 
-
 # Per disease group over time 
 - Syndromes 
-
 
 ```{r}
 
@@ -29,6 +26,13 @@ dissyndrome <- read.csv("Total_Acropora_Syndromes.csv")
 
 ```{r}
 
+acro_syndrome_lagoon <- dissyndrome %>% 
+  group_by(Month) %>%
+  summarise(mean = mean(Total_prev, na.rm = TRUE),
+            sd = sd(Total_prev, na.rm = TRUE),
+            n = sum(!is.na(Total_prev)),
+            se = sd/sqrt(n))
+
 acro_syndrome_plotting <- dissyndrome %>% group_by(Month,Site) %>%
   summarise(mean = mean(Total_prev, na.rm = TRUE),
             sd = sd(Total_prev, na.rm = TRUE),
@@ -37,7 +41,11 @@ acro_syndrome_plotting <- dissyndrome %>% group_by(Month,Site) %>%
 
 y <- c("SB","EB")
 
+c <- c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023")
+
 acro_syndrome_plotting$Site <- factor(acro_syndrome_plotting$Site, levels = y)
+
+acro_syndrome_plotting$Month <- factor(acro_syndrome_plotting$Month, levels = c)
 
 lagoon_syndromes <- ggplot(acro_syndrome_plotting, aes(x=Month, y=mean, color = Site)) + 
     geom_point() +
@@ -47,13 +55,12 @@ lagoon_syndromes <- ggplot(acro_syndrome_plotting, aes(x=Month, y=mean, color = 
     theme_bw() +
    scale_colour_manual(values =  c("gray75","grey32"))
 
+lagoon_syndromes
+
 ```
-
-
 
 # EB and SB and CEM 
 ```{r}
-
 
 acro_syndrome_dis_prev <- discem  %>%
   group_by(Month,Survey,Syndrome) %>%
@@ -65,7 +72,7 @@ acro_syndrome_dis_prev_dis <- filter(acro_syndrome_dis_prev, Syndrome == "Diseas
 
 
 # Errors dot plot 
-acro_syndrome_plotting <- acro_syndrome_dis_prev_dis %>% group_by(Month) %>%
+acro_syndrome_plotting_CEM <- acro_syndrome_dis_prev_dis %>% group_by(Month) %>%
   summarise(mean = mean(prop, na.rm = TRUE),
             sd = sd(prop, na.rm = TRUE),
             n = sum(!is.na(prop)),
@@ -75,7 +82,7 @@ x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
 
 acro_syndrome_plotting$Month <- factor(acro_syndrome_plotting$Month, levels = x)
 
-ggplot(acro_syndrome_plotting , aes(x=Month, y=mean)) + 
+ggplot(acro_syndrome_plotting_CEM , aes(x=Month, y=mean)) + 
     geom_point() +
     geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
     scale_y_continuous(limits = c(0,100)) +
