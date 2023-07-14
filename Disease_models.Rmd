@@ -1,0 +1,658 @@
+---
+title: "Disease_models"
+output: html_notebook
+---
+
+# Statistics for Acropora diseases at NFI 
+
+# Statistics 
+
+Transect-level statistical analysis on disease dynamics. 
+
+2) Disease prevalence (DP) (% of surveyed community showing active disease signs)
+    a) Build glm (use weights function to specify number of colonies per transect), family = binomial
+3) Disease severity (DS) (the best variable for this response needs to be assessed)
+    b) Step two: Build model (lm, average is normally distributed)
+Predictor variables for models in 2) and 3):
++ TP (Dec,April)
++ Site (EB,SB)
++ Total Acropora cover (%)
++ TP*Site interaction (for Syndrome type diseases only)
+
+Load libraries
+```{r}
+# Libraries 
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(multcomp)
+library(lme4)
+library(effects)
+library(lmerTest)
+library(afex)
+library(car)
+library(magrittr)
+library(ggeffects)
+library(sjmisc)
+library(splines)
+library(glmmTMB)
+library(DHARMa)
+library(devtools)
+library(pbkrtest)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(MASS)
+library(lsmeans)
+library(MuMIn)
+
+```
+
+
+# DP (Disease prevalence)
+Files contain prevalence, colony abundance and cover for lagoonal transects (EB, SB) over time.
+
+```{r}
+
+# Subacute-acute WS
+acute_prev_modelling <- read.csv("Acute_prev_modelling.csv")
+
+# Paling WS with tissue loss 
+chronic_prev_modelling <- read.csv("Chronic_prev_modelling.csv")
+
+# Paling Syndrome
+paling_prev_modelling <- read.csv("Paling_prev_modelling.csv")
+
+# GA_prev_modelling 
+GA_prev_modelling <- read.csv("GA_prev_modelling.csv")
+
+```
+
+
+Health state: Paling syndrome prevalence 
+
+```{r}
+
+# Calculate mean prevalence across the whole lagoon at each time point 
+
+paling_prev_modelling$abundance <- as.numeric(paling_prev_modelling$abundance)
+
+# Remove 0 weights from datasets 
+
+paling_prev_nozero <- paling_prev_modelling[paling_prev_modelling$abundance != 0, ]    
+
+paling_prev_nozero$Month <- as.factor(paling_prev_nozero$Month)
+paling_prev_nozero$Site <- as.factor(paling_prev_nozero$Site)
+
+str(paling_prev_nozero)
+moda <- glm(Paling_prev_prop ~ Site * Month + Acropora_cover, weights = abundance, family = binomial(), data=paling_prev_nozero)
+
+simulationOutput <- simulateResiduals(fittedModel = moda, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+summary(moda)
+Anova(moda)
+
+# Site x Month interaction 
+# Site x Acro cover 
+# Month x Acro cover 
+
+library(MuMIn)
+r.squaredGLMM(moda)
+
+library(lsmeans)
+lsmeans(moda, pairwise ~  Month, adjust = "Tukey")
+
+```
+
+Plotting 
+
+```{r}
+
+# Errors dot plot 
+
+acro_all_paling <- paling_prev_nozero %>% group_by(Month) %>%
+  summarise(mean = mean(Paling_prev_prop, na.rm = TRUE),
+            sd = sd(Paling_prev_prop, na.rm = TRUE),
+            n = sum(!is.na(Paling_prev_prop)),
+            se = sd/sqrt(n))
+
+acro_all_paling$Month <- factor(acro_all_paling$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(acro_all_paling, aes(x=Month, y=mean)) + 
+    geom_point(position = position_dodge(0.8), colour = "#960019") +
+  geom_line() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8), colour = "#960019") +
+    scale_y_continuous(limits = c(0,0.4)) +
+  theme_bw() 
+
+```
+
+
+Paling WS with Tissue Loss
+```{r}
+# Test for how many 0's are present 
+
+# Calculate mean prevalence across the whole lagoon at each time point 
+
+str(chronic_prev_nozero)
+chronic_prev_nozero %>% ungroup() %>% summarise(mean_lagoon = mean(Chronic_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Chronic_prev_prop)),
+          sd = sd(Chronic_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+# Across all lagoon with time
+chronic_prev_nozero%>% ungroup() %>% group_by(Month) %>% summarise(mean_lagoon = mean(Chronic_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Chronic_prev_prop)),
+          sd = sd(Chronic_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+# Across all lagoon with time
+chronic_prev_nozero%>% ungroup() %>% group_by(Month,Site) %>% summarise(mean_lagoon = mean(Chronic_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Chronic_prev_prop)),
+          sd = sd(Chronic_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+100*sum(chronic_prev_modelling$Chronic_prev_prop == 0)/nrow(chronic_prev_modelling)
+
+str(chronic_prev_modelling)
+
+chronic_prev_modelling$abundance <- as.numeric(chronic_prev_modelling$abundance)
+
+# Remove 0 weights from datasets 
+
+chronic_prev_nozero <- chronic_prev_modelling[chronic_prev_modelling$abundance != 0, ]    
+
+chronic_prev_nozero$Month <- as.factor(chronic_prev_nozero$Month)
+chronic_prev_nozero$Site <- as.factor(chronic_prev_nozero$Site)
+
+
+mod1 <- glm(Chronic_prev_prop ~ Site * Month + Acropora_cover, weights = abundance, family = binomial(), data=chronic_prev_nozero)
+
+simulationOutput <- simulateResiduals(fittedModel = mod1, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+summary(mod1)
+Anova(mod1)
+
+
+r.squaredGLMM(mod1)
+
+
+lsmeans(mod1, pairwise ~ Site | Month, adjust = "Tukey")
+lsmeans(mod1, pairwise ~ Month | Site, adjust = "Tukey")
+
+Anova(mod1)%>% as.data.frame() %>% write.csv(file = "Chronic_prev_anova.csv")
+anova(mod1, test = "Chisq") %>% as.data.frame() %>% write.csv(file = "Chronic_prev_anova.csv")
+
+
+```
+Plotting
+
+```{r}
+# Across all lagoon with time
+acro_chronic_lagoon_filtered_plot <- chronic_prev_nozero%>% group_by(Month,Site) %>% summarise(mean = mean(Chronic_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Chronic_prev_prop)),
+          sd = sd(Chronic_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+acro_chronic_lagoon_filtered_plot$Month <- factor(acro_chronic_lagoon_filtered_plot$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(acro_chronic_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+  geom_line() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.4)) +
+  theme_bw() +
+  facet_wrap(~Site) +
+  scale_color_manual(values =  c("#f5c578", "#e05f15"))
+```
+
+Acute-subacute WS
+
+```{r}
+# Remove 0 weights from datasets 
+
+acute_prev_nozero <- acute_prev_modelling[acute_prev_modelling$abundance != 0, ]    
+str(acute_prev_nozero)
+
+# Calculate mean prevalence across the whole lagoon at each time point 
+str(acute_prev_nozero)
+
+acute_prev_nozero %>% ungroup() %>% summarise(mean_lagoon = mean(Acute_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Acute_prev_prop)),
+          sd = sd(Acute_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+# Across all lagoon with time
+acute_prev_nozero %>% ungroup() %>% group_by(Month) %>% summarise(mean_lagoon = mean(Acute_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Acute_prev_prop)),
+          sd = sd(Acute_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+acute_prev_nozero %>% ungroup() %>% group_by(Month,Site) %>% summarise(mean_lagoon = mean(Acute_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(Acute_prev_prop)),
+          sd = sd(Acute_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+mod3 <- glm(Acute_prev_prop ~ Site * Month + Acropora_cover, weights = abundance, family = binomial(), data=acute_prev_nozero)
+
+simulationOutput <- simulateResiduals(fittedModel = mod3, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+# No problems detected 
+
+summary(mod3)
+anova(mod3, test = "Chisq") %>% as.data.frame() %>% write.csv(file = "Acute_prev_anova.csv")
+Anova(mod3)%>% as.data.frame() %>% write.csv(file = "Acute_prev_anova.csv")
+# Site x Month interaction 
+# Site x Acro cover 
+# Month x Acro cover 
+
+r.squaredGLMM(mod3)
+
+lsmeans(mod3, pairwise ~ Site | Month, adjust = "Tukey")
+lsmeans(mod3, pairwise ~ Month | Site, adjust = "Tukey")
+
+```
+
+```{r}
+
+str(acute_prev_nozero)
+
+# Errors dot plot 
+acro_acute_lagoon_filtered_plot <- acute_prev_nozero %>% group_by(Month,Site) %>%
+  summarise(mean = mean(Acute_prev_prop, na.rm = TRUE),
+            sd = sd(Acute_prev_prop, na.rm = TRUE),
+            n = sum(!is.na(Acute_prev_prop)),
+            se = sd/sqrt(n))
+
+acro_acute_lagoon_filtered_plot$Month <- factor(acro_acute_lagoon_filtered_plot$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.6)) +
+  theme_bw() +
+  scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
+
+ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.8)) +
+  theme_bw() +
+  facet_wrap(~Site) +
+  scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
+```
+
+
+GA
+
+```{r}
+
+# Remove 0 weights from datasets 
+
+GA_prev_nozero <- GA_prev_modelling[GA_prev_modelling$abundance != 0, ]    
+str(GA_prev_nozero)
+
+GA_prev_nozero %>% ungroup() %>% summarise(mean_lagoon = mean(GA_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(GA_prev_prop)),
+          sd = sd(GA_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+# Across all lagoon with time
+GA_prev_nozero %>% ungroup() %>% group_by(Site) %>% summarise(mean_lagoon = mean(GA_prev_prop, na.rm = TRUE),
+          n = sum(!is.na(GA_prev_prop)),
+          sd = sd(GA_prev_prop, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+mod5 <- glm(GA_prev_prop ~ Site + Month + Acropora_cover, weights = abundance, family = binomial(), data=GA_prev_nozero)
+
+simulationOutput <- simulateResiduals(fittedModel = mod5, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+testDispersion(simulationOutput)
+testZeroInflation(simulationOutput)
+testResiduals(simulationOutput)
+anova(mod5, test = "Chisq")
+
+plot_model(mod5, type = "pred", terms = "Acropora_cover",show.values = TRUE, show.data = TRUE,show.intercept = TRUE) +
+  theme_bw()
+
+r.squaredGLMM(mod5)
+
+# Try transforming the cover variable (logit )
+library(car)
+
+logit(GA_prev_nozero$Acropora_cover, percents = TRUE)
+
+# Try a negative binomial model
+
+negative_binomial_GA <- GA_prev_nozero %>% mutate(diseased = abundance*GA_prev_prop)
+
+mode6 <- glmmTMB(diseased ~ Site + Month + Acropora_cover, offset = log(abundance) , data = negative_binomial_GA, family = nbinom2())
+
+simulationOutput <- simulateResiduals(fittedModel = mode6, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+Anova(mode6) %>% as.data.frame() %>% write.csv(file = "GA_prev_anova.csv")
+
+r.squaredLR(mode6)
+r.squaredGLMM(mode6)
+
+library(jtools)
+effect_plot(mode6, pred = Acropora_cover, interval = TRUE, plot.points = F, rug = TRUE,
+            jitter = 0.05)
+
+plot(allEffects(mode6))
+
+plot_model(mode6, type = "pred", terms = "Acropora_cover",show.values = TRUE, show.data = TRUE) +
+  theme_bw()
+plot_model(mode6, type = "pred", terms = "Site",show.values = TRUE, show.data = TRUE) +
+  theme_bw()
+
+emm <- emmeans(mode6, specs="Acropora_cover")
+emm
+summary(mode6)
+
+mode6$coefficients
+
+# Site x Month interaction 
+# Site x Acro cover 
+# Month x Acro cover 
+
+r.squaredGLMM(mod3)
+
+lsmeans(mode6, pairwise ~ Site, adjust = "Tukey")
+
+```
+
+```{r}
+
+View(GA_prev_nozero)
+
+GA_prev_nozero$Month <- factor(GA_prev_nozero$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+GA_prev_nozero$Site <- factor(GA_prev_nozero$Site, levels = c("SB","EB"))
+
+# Errors dot plot 
+acro_GA_lagoon_filtered_plot <- GA_prev_nozero %>% group_by(Month,Site) %>%
+  summarise(mean = mean(GA_prev_prop, na.rm = TRUE),
+            sd = sd(GA_prev_prop, na.rm = TRUE),
+            n = sum(!is.na(GA_prev_prop)),
+            se = sd/sqrt(n))
+
+ggplot(acro_GA_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.4)) +
+  facet_wrap(~Site) +
+  theme_bw() +
+  scale_color_manual(values =  c("#9DC183","#0A6522"))
+
+ggplot(acro_GA_lagoon_filtered_plot, aes(x=Site, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+  geom_line() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.4)) +
+  theme_bw() +
+  scale_color_manual(values =  c("#9DC183","#0A6522"))
+
+```
+
+# DS (Disease severity)
+
+```{r}
+
+chronic_sev_modelling <- read.csv("acro_chron_sev.csv") 
+acute_sev_modelling <- read.csv("Acute_severity_modelling.csv")
+GA_sev_modelling <- read.csv("GA_severity_modelling.csv")
+
+```
+
+Paling WS with Tissue Loss 
+
+```{r}
+
+str(chronic_sev_modelling)
+
+# Make a half violin plot of disease severity 
+
+chronic_sev_modelling$Month <- as.factor(chronic_sev_modelling$Month)
+chronic_sev_modelling$Site <- as.factor(chronic_sev_modelling$Site)
+chronic_sev_modelling$Survey <- as.factor(chronic_sev_modelling$Survey)
+
+chronic_sev_modelling %>% summarise(min_sev = min(Severity),
+                                    max_sev = max(Severity))
+
+chronic_sev_modelling %>% ungroup() %>% summarise(mean_sev_lagoon = mean(Severity),
+     n = sum(!is.na(Severity)),
+          sd = sd(Severity, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+chronic_sev_modelling %>% group_by(Month) %>% summarise(mean_sev_lagoon = mean(Severity),
+     n = sum(!is.na(Severity)),
+          sd = sd(Severity, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+
+# Try and model it as a count variable using poison
+
+model_2<- lmer(log(Severity) ~  Site * Month + (1|Survey), data=chronic_sev_modelling)
+
+simulationOutput <- simulateResiduals(fittedModel = model_2, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+summary(model_2)
+
+Anova(model_2) %>% as.data.frame() %>% write.csv(file = "Chronic_sev_anova.csv")
+r.squaredGLMM(model_2)
+
+lsmeans(model_2, pairwise ~ Site | Month, adjust = "Tukey")
+lsmeans(model_2, pairwise ~ Month | Site, adjust = "Tukey")
+
+
+
+```
+Plotting
+```{r}
+
+chronic_sev_modelling$Month <- factor(chronic_sev_modelling$Month, levels = c("2021_April","2022_April","2022_September","2022_December","2023_April"))
+
+ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.6)) +
+  theme_bw() +
+  scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
+
+ggplot(chronic_sev_modelling, aes(x=Month, y=Severity, color = Site)) + 
+    geom_boxplot(position = position_dodge(0.8)) +
+    #geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    #scale_y_continuous(limits = c(0,0.8)) +
+  theme_bw() +
+  facet_wrap(~Site) +
+  scale_color_manual(values =  c("#f5c578", "#e05f15"))
+
+ggplot(chronic_sev_modelling, aes(x=Month, y=Severity, color = Site)) + 
+    geom_boxplot(position = position_dodge(0.8)) +
+    #geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    #scale_y_continuous(limits = c(0,0.8)) +
+  theme_bw() +
+  facet_wrap(~Site) +
+  scale_color_manual(values =  c("#f5c578", "#e05f15"))
+
+
+  
+
+```
+
+```{r}
+str(acute_sev_modelling)
+
+hist(acute_sev_modelling$Severity)
+
+acute_sev_modelling$Month <- as.factor(acute_sev_modelling$Month)
+acute_sev_modelling$Site <- as.factor(acute_sev_modelling$Site)
+acute_sev_modelling$Survey <- as.factor(acute_sev_modelling$Survey)
+
+acute_sev <- as.data.frame(acute_sev_modelling) %>%
+ group_by(Month,Site,Survey) %>% summarise(mean_sev = mean(Severity))
+
+acute_sev_modelling %>% summarise(min_sev = min(Severity),
+                                    max_sev = max(Severity))
+
+acute_sev %>% ungroup() %>% summarise(mean_sev_lagoon = mean(mean_sev),
+     n = sum(!is.na(mean_sev)),
+          sd = sd(mean_sev, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+acute_sev %>% group_by(Month) %>% summarise(mean_sev_lagoon = mean(mean_sev),
+     n = sum(!is.na(mean_sev)),
+          sd = sd(mean_sev, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+acute_sev %>% group_by(Month,Site) %>% summarise(mean_sev_lagoon = mean(mean_sev),
+     n = sum(!is.na(mean_sev)),
+          sd = sd(mean_sev, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+hist(acute_sev$mean_sev)
+
+model_3 <- lm(mean_sev ~  Site * Month, data=acute_sev)
+
+plot(model_2)
+summary(model_2)
+
+Anova(model_2, test = "Chisq")
+
+lsmeans(model_2, pairwise ~ Site | Month, adjust = "Tukey")
+lsmeans(model_2, pairwise ~ Month | Site, adjust = "Tukey")
+
+model_4<- lmer(log(Severity) ~  Site * Month + (1|Survey), data=acute_sev_modelling)
+
+simulationOutput <- simulateResiduals(fittedModel = model_4, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+Anova(model_4, test = "Chisq") %>% as.data.frame() %>% write.csv(file = "Acute_sev_anova.csv")
+
+lsmeans(model_4, pairwise ~ Site | Month, adjust = "Tukey")
+lsmeans(model_4, pairwise ~ Month | Site, adjust = "Tukey")
+
+r.squaredGLMM(model_4)
+```
+
+```{r}
+
+acute_sev_modelling$Month <- factor(acute_sev_modelling$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,0.6)) +
+  theme_bw() +
+  scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
+
+ggplot(acute_sev_modelling, aes(x=Month, y=Severity, color = Site)) + 
+    geom_boxplot(position = position_dodge(0.8)) +
+    #geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    #scale_y_continuous(limits = c(0,0.8)) +
+  theme_bw() +
+  facet_wrap(~Site) +
+  scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
+```
+
+# GA sev modelling 
+
+```{r}
+
+GA_sev_modelling %>% ungroup() %>% summarise(mean_sev_lagoon = mean(GA_area),
+     n = sum(!is.na(GA_area)),
+          sd = sd(GA_area, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+GA_sev_modelling %>% group_by(Month) %>% summarise(mean_sev_lagoon = mean(GA_area),
+     n = sum(!is.na(GA_area)),
+          sd = sd(GA_area, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+GA_sev_modelling %>% group_by(Month,Site) %>% summarise(mean_sev_lagoon = mean(GA_area),
+     n = sum(!is.na(GA_area)),
+          sd = sd(GA_area, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+
+str(GA_sev_modelling)
+
+GA_sev_modelling$Month <- as.factor(GA_sev_modelling$Month)
+GA_sev_modelling$Site <- as.factor(GA_sev_modelling$Site)
+GA_sev_modelling$Survey <- as.factor(GA_sev_modelling$Survey)
+
+GA_sev <- as.data.frame(GA_sev_modelling) %>%
+ group_by(Month,Site,Survey) %>% summarise(kax_sev = mean(GA_area))
+
+GA_sev_modelling %>% ungroup() %>% summarise(max_sev = max(GA_area),
+                                   min_sev = min(GA_area))
+
+
+hist(GA_sev_modelling$GA_area)
+
+model_2 <- lm(GA_area ~  Site * Month + mean_cover, data=GA_sev_modelling)
+plot(model_2)
+summary(model_2)
+
+anova(model_2, test = "Chisq")
+
+lsmeans(model_2, pairwise ~ Site | Month, adjust = "Tukey")
+lsmeans(model_2, pairwise ~ Month | Site, adjust = "Tukey")
+
+model_6<- lmer(log(GA_area) ~  Site * Month + (1|Survey), data=GA_sev_modelling)
+
+simulationOutput <- simulateResiduals(fittedModel = model_6, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+ 
+Anova(model_6, test = "Chisq") %>% as.data.frame() %>% write.csv(file = "GA_sev_anova.csv")
+
+lsmeans(model_6, pairwise ~ Month, adjust = "Tukey")
+
+r.squaredGLMM(model_6)
+
+
+```
+
+
+# Plot 
+
+```{r}
+
+GA_sev_modelling %>% group_by(Month) %>% summarise(mean_lagoon = mean(GA_area, na.rm = TRUE),
+          n = sum(!is.na(GA_area)),
+          sd = sd(GA_area, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+GA_sev_modelling$Month <- factor(GA_sev_modelling$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(GA_sev_modelling, aes(x=Month, y=GA_area)) + 
+    geom_boxplot(position = position_dodge(0.8), colour = "#0A6522") +
+    #geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    #scale_y_continuous(limits = c(0,0.8)) +
+  theme_bw() #+
+  scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
+
+```
+

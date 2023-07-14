@@ -1,0 +1,145 @@
+---
+title: "Coral_cover"
+output: html_notebook
+---
+
+Coral cover plotting over time 
+
+Packages 
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+
+benthic_cover <- read.csv("Benthic_cover_acro_proj.csv")
+
+
+```
+
+# Acropora cover (all time, EB and SB)
+
+```{r}
+
+acro_master <- benthic_cover %>% filter(Category == "Acropora")
+
+x <- c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023")
+
+acro_master$TP <- factor(acro_master$TP, levels = x)
+
+
+y <- c("SB","EB","CB")
+
+acro_master$Site <- factor(acro_master$Site, levels = y)
+
+# Summarise 
+
+acro_summed <- acro_master %>% group_by(Site)
+
+# Box plots 
+
+ggplot(acro_master, aes(Site,mean.cover)) +
+  geom_boxplot(outlier.size = 0.2) +
+ # facet_grid(~Site) +
+  theme_bw()
+
+
+
+```
+
+# Relative cover bar plot 
+
+```{r}
+hard_master <- benthic_cover %>% filter(Group == "Hard_coral")
+
+hard_summarised <- hard_master %>% group_by(Site,Category) %>%
+  summarise(mean_cover = mean(mean.cover))
+
+y <- c("SB","EB","CB")
+
+hard_summarised$Site <- factor(hard_summarised$Site, levels = y)
+
+
+b <- c("Other_hard_coral","Pocillipora","Montipora","Acropora")
+
+hard_summarised$Category <- factor(hard_summarised$Category, levels = b)
+
+# Stacked bar plot
+
+ggplot(hard_summarised, aes(Site,mean_cover, fill = Category)) +
+  geom_col(stat = "identity") +
+  theme_bw() +
+  coord_flip()
+
+```
+
+# Plot of total hard coral cover and acropora cover at each site side by side (IDEALLY)
+
+```{r}
+
+
+x <- c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023")
+
+benthic_cover$TP <- factor(benthic_cover$TP, levels = x)
+
+y <- c("SB","EB","CB")
+
+benthic_cover$Site <- factor(benthic_cover$Site, levels = y)
+
+# Sum for all hard coral 
+
+hard_coral <- benthic_cover %>% filter(Group == "Hard_coral") %>%
+  group_by(TP,Site,Group) %>% 
+  summarise(sum_hard = sum(mean.cover))
+  
+ggplot(hard_coral, aes(Site,sum_hard)) +
+  geom_boxplot(outlier.size = 0.2) +
+ # facet_grid(~Site) +
+  theme_bw()
+
+
+
+```
+
+
+# Acropora cover at transects in EB and SB over time (for Supplemental figure)
+Used in statistical models 
+
+```{r}
+chronic_prev_modelling <- read.csv("Chronic_prev_modelling.csv")
+```
+
+Plot the Acropora cover 
+
+```{r}
+str(chronic_prev_modelling)
+acro_cover <- chronic_prev_modelling %>% group_by(Month,Site) %>%
+  summarise(mean = mean(Acropora_cover, na.rm = TRUE),
+            sd = sd(Acropora_cover, na.rm = TRUE),
+            n = sum(!is.na(Acropora_cover)),
+            se = sd/sqrt(n))
+
+acro_cover$Month <- factor(acro_cover$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(acro_cover, aes(x=Month, y=mean, color = Site)) + 
+    geom_point(position = position_dodge(0.8)) +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
+    scale_y_continuous(limits = c(0,40)) +
+  theme_bw() +
+  scale_color_manual(values =  c("#D2D2D2", "#969696"))+
+  ylab("Acropora cover (%)")
+
+
+# Mean benthic cover of Acropora over time 
+
+acro_cover %>% ungroup() %>% summarise(mean_lagoon = mean(mean),
+          n = sum(!is.na(mean)),
+          sd = sd(mean, na.rm = TRUE),
+          se = sd/sqrt(n))
+
+
+```
+
+
+

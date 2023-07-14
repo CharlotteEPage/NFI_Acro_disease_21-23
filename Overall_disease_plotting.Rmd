@@ -1,0 +1,228 @@
+---
+title: "Overall_disease_plotting"
+output: html_notebook
+---
+
+# Plots and summary statistics for coral health states observed at EB and SB over time 
+
+# Per disease group over time 
+- Syndromes 
+
+
+```{r}
+
+# Libraries and data 
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(multcomp)
+library(stringr)
+
+discem <- read.csv("Cem_diseases.csv")
+
+dissyndrome <- read.csv("Total_Acropora_Syndromes.csv")
+
+```
+
+# Syndrome like diseases over time 
+
+```{r}
+
+acro_syndrome_plotting <- dissyndrome %>% group_by(Month,Site) %>%
+  summarise(mean = mean(Total_prev, na.rm = TRUE),
+            sd = sd(Total_prev, na.rm = TRUE),
+            n = sum(!is.na(Total_prev)),
+            se = sd/sqrt(n))
+
+y <- c("SB","EB")
+
+acro_syndrome_plotting$Site <- factor(acro_syndrome_plotting$Site, levels = y)
+
+lagoon_syndromes <- ggplot(acro_syndrome_plotting, aes(x=Month, y=mean, color = Site)) + 
+    geom_point() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
+    scale_y_continuous(limits = c(0,100)) +
+    facet_wrap(~Site) +
+    theme_bw() +
+   scale_colour_manual(values =  c("gray75","grey32"))
+
+```
+
+
+
+# EB and SB and CEM 
+```{r}
+
+
+acro_syndrome_dis_prev <- discem  %>%
+  group_by(Month,Survey,Syndrome) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_syndrome_dis_prev_dis <- filter(acro_syndrome_dis_prev, Syndrome == "Diseased")
+
+
+# Errors dot plot 
+acro_syndrome_plotting <- acro_syndrome_dis_prev_dis %>% group_by(Month) %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+
+x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+
+acro_syndrome_plotting$Month <- factor(acro_syndrome_plotting$Month, levels = x)
+
+ggplot(acro_syndrome_plotting , aes(x=Month, y=mean)) + 
+    geom_point() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
+    scale_y_continuous(limits = c(0,100)) +
+    theme_bw() +
+   scale_colour_manual(values =  c("grey4"))
+
+```
+
+# Growth anomaly 
+
+```{r}
+
+acro_GA_dis_prev <- discem  %>%
+  group_by(Month,Survey,GA) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_GA_dis_prev_dis <- filter(acro_GA_dis_prev, GA == "Yes")
+
+# Errors dot plot 
+acro_GA_plotting <- acro_GA_dis_prev_dis %>% group_by(Month) %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+
+x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+
+acro_GA_plotting$Month <- factor(acro_GA_plotting$Month, levels = x)
+
+
+ggplot(acro_GA_plotting , aes(x=Month, y=mean)) + 
+    geom_point() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
+    scale_y_continuous(limits = c(0,100)) +
+    theme_bw() +
+   scale_colour_manual(values =  c("grey4"))
+
+
+```
+
+# Acute 
+
+```{r}
+
+acro_acute_dis_prev <- disecol  %>%
+  group_by(Month,Survey,Acute) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_acute_dis_prev_dis <- filter(acro_acute_dis_prev, Acute == "Diseased")
+
+# Errors dot plot 
+acro_acute_plotting <- acro_acute_dis_prev_dis %>% group_by(Month) %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+
+x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+
+acro_acute_plotting$Month <- factor(acro_acute_plotting$Month, levels = x)
+
+ggplot(acro_acute_plotting , aes(x=Month, y=mean)) + 
+    geom_point() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
+    scale_y_continuous(limits = c(0,100)) +
+    theme_bw() +
+   scale_colour_manual(values =  c("grey4"))
+
+```
+
+# Paling WS
+
+```{r}
+
+acro_chronic_dis_prev <- disecol  %>%
+  group_by(Month,Site,Survey,Chronic) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_chronic_dis_prev_dis <- filter(acro_chronic_dis_prev, Chronic == "Diseased")
+
+
+# Errors dot plot 
+acro_chronic_plotting <- acro_chronic_dis_prev_dis %>% group_by(Month,Site) %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+
+x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+
+acro_chronic_plotting$Month <- factor(acro_chronic_plotting$Month, levels = x)
+
+y <- c("SB","EB","Cem")
+
+acro_chronic_plotting$Site <- factor(acro_chronic_plotting$Site, levels = y)
+
+ggplot(acro_chronic_plotting , aes(x=Month, y=mean, color = Site)) + 
+    geom_point() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
+    scale_y_continuous(limits = c(0,100)) +
+    facet_wrap(~Site) +
+    theme_bw() +
+   scale_colour_manual(values =  c("gray75","grey32","grey4"))
+
+```
+Paling Syndrome
+```{r}
+
+acro_pale_dis_prev <- disecol  %>%
+  group_by(Month,Site,Survey,Paling) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_pale_dis_prev_dis <- filter(acro_pale_dis_prev, Paling == "Yes")
+
+
+# Errors dot plot 
+acro_pale_plotting <- acro_pale_dis_prev_dis %>% group_by(Month,Site) %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+
+x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+
+acro_pale_plotting$Month <- factor(acro_pale_plotting$Month, levels = x)
+
+y <- c("SB","EB","Cem")
+
+acro_pale_plotting$Site <- factor(acro_pale_plotting$Site, levels = y)
+
+ggplot(acro_pale_plotting , aes(x=Month, y=mean, color = Site)) + 
+    geom_point() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
+    scale_y_continuous(limits = c(0,100)) +
+    facet_wrap(~Site) +
+    theme_bw() +
+   scale_colour_manual(values =  c("gray75","grey32","grey4"))
+
+```
+
+
+
