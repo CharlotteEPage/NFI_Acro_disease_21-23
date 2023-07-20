@@ -1,0 +1,149 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+Environmental context for Acropora disease event at Norfolk Island (2021-2023)
+
+Period: December 2020 - April 15th 2023
+
+- Marine Heat Waves
+
+```{r}
+
+# Load libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(heatwaveR)
+# The packages we will use
+library(dplyr) # A staple for modern data management in R
+library(lubridate) # Useful functions for dealing with dates
+library(ggplot2) # The preferred library for data visualisation
+library(tidync) # For easily dealing with NetCDF data
+library(rerddap) # For easily downloading subsets of data
+library(doParallel) # For parallel processing
+
+```
+```{r}
+# This function downloads and prepares data based on user provided start and end dates
+OISST_sub_dl <- function(time_df){
+  OISST_dat <- rerddap::griddap(datasetx = "ncdcOisst21Agg_LonPM180",
+                                url = "https://coastwatch.pfeg.noaa.gov/erddap/", 
+                                time = c(time_df$start, time_df$end), 
+                                zlev = c(0, 0),
+                                latitude = c(-28,-29),
+                                longitude = c(167,168),
+                                fields = "sst")$data %>% 
+    dplyr::mutate(time = base::as.Date(stringr::str_remove(time, "T12:00:00Z"))) %>% 
+    dplyr::rename(t = time, temp = sst, lon = longitude, lat = latitude) %>% 
+    dplyr::select(lon, lat, t, temp) %>% 
+    stats::na.omit()
+}
+```
+
+
+```{r}
+# Date download range by start and end dates per year
+dl_years <- data.frame(date_index = 1:6,
+                       start = as.Date(c("1982-01-01", "1990-01-01", 
+                                         "1998-01-01", "2006-01-01", "2014-01-01","2020-01-01")),
+                       end = as.Date(c("1989-12-31", "1997-12-31", 
+                                       "2005-12-31", "2013-12-31", "2019-12-31","2023-04-15")))
+```
+
+
+```{r}
+# Download all of the data with one nested request
+# The time this takes will vary greatly based on connection speed
+base::system.time(
+  OISST_data <- dl_years %>% 
+    dplyr::group_by(date_index) %>% 
+    dplyr::group_modify(~OISST_sub_dl(.x)) %>% 
+    dplyr::ungroup() %>% 
+    dplyr::select(lon, lat, t, temp)
+)
+```
+
+
+```{r}
+# Viusalise data 
+
+OISST_data %>% 
+  dplyr::filter(t == "2021-04-01") %>% 
+  ggplot2::ggplot(aes(x = lon, y = lat)) +
+  ggplot2::geom_tile(aes(fill = temp)) +
+  # ggplot2::borders() + # Activate this line to see the global map
+  ggplot2::scale_fill_viridis_c() +
+  ggplot2::coord_quickmap(expand = F) +
+  ggplot2::labs(x = NULL, y = NULL, fill = "SST (°C)") +
+  ggplot2::theme(legend.position = "bottom")
+```
+
+```{r}
+# Save the data as an .Rds file because it has a much better compression rate than .RData
+base::saveRDS(OISST_data, file = "NFI_MHW_data.Rds")
+```
+
+
+```{r}
+
+ts <- ts2clm(OISST_data,climatologyPeriod = c("1982-01-01", "2011-12-31"))
+
+mhw <- detect_event(ts)
+
+# View just a few metrics
+mhw$event %>% 
+  dplyr::ungroup() %>%
+  dplyr::select(event_no, duration, date_start, date_peak, intensity_max, intensity_cumulative) %>% 
+  dplyr::arrange(-intensity_max) %>% 
+  head(5)
+```
+
+
+
+```{r}
+
+event_line(mhw, spread = 180, metric = intensity_max, 
+           start_date = "1982-01-01", end_date = "2014-12-31")
+
+event_line(mhw, spread = 180, metric = intensity_max, 
+           start_date = "2020-12-01", end_date = "2023-04-15")
+```
+
+```{r}
+ggplot(mhw$event, aes(x = date_start, y = intensity_max)) +
+  geom_lolli(colour = "salmon", colour_n = "red", n = 3) +
+  geom_text(colour = "black", aes(x = as.Date("2006-08-01"), y = 5,
+                label = "The marine heatwaves\nTend to be left skewed in a\nGiven time series")) +
+  labs(y = expression(paste("Max. intensity [", degree, "C]")), x = NULL)
+```
+```{r}
+# Select the region of the time series of interest
+mhw2 <- mhw$climatology %>% 
+  slice(10580:10720)
+
+# It is necessary to give geom_flame() at least one row on either side of 
+# the event in order to calculate the polygon corners smoothly
+mhw_top <- mhw2 %>% 
+  slice(5:111)
+
+ggplot(data = mhw2, aes(x = t)) +
+  geom_flame(aes(y = temp, y2 = thresh, fill = "all"), show.legend = T) +
+  geom_flame(data = mhw_top, aes(y = temp, y2 = thresh, fill = "top"),  show.legend = T) +
+  geom_line(aes(y = temp, colour = "temp")) +
+  geom_line(aes(y = thresh, colour = "thresh"), size = 1.0) +
+  geom_line(aes(y = seas, colour = "seas"), size = 1.2) +
+  scale_colour_manual(name = "Line Colour",
+                      values = c("temp" = "black", 
+                                 "thresh" =  "forestgreen", 
+                                 "seas" = "grey80")) +
+  scale_fill_manual(name = "Event Colour", 
+                    values = c("all" = "salmon", 
+                               "top" = "red")) +
+  scale_x_date(date_labels = "%b %Y") +
+  guides(colour = guide_legend(override.aes = list(fill = NA))) +
+  labs(y = expression(paste("Temperature [", degree, "C]")), x = NULL)
+
+
+```
+
