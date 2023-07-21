@@ -1,0 +1,196 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Environmental context for Acropora disease event at Norfolk Island (2021-2023)
+
+Period: December 2020 - April 15th 2023
+
+- SOI
+- Rainfall (downloaded from BOM)
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(plyr)
+library(lattice)
+library(openair)
+library(stringr)
+
+SOI <- SOI_index <- read.csv("soi_monthly.csv")
+BOM_rainfall <- read.csv("BOM_1981_April2023_rainfall.csv")
+
+  
+```
+
+# SOI 
+
+
+```{r}
+str(SOI_index)
+
+# Filter for year/months of interest 
+
+study_SOI <- SOI_index %>% filter(YearMonth > 202011) %>% mutate(site = "Norfolk")
+
+study_SOI$YearMonth <- as.factor(study_SOI$YearMonth)
+
+ggplot(study_SOI, aes(YearMonth,SOI, group =site)) + 
+  geom_line() +
+  scale_y_continuous(limits = c(-10,25,5)) +
+  theme_bw()
+
+```
+
+
+# Rainfall 
+
+```{r}
+
+str(BOM_rainfall)
+
+# Join Day Month Year columns to make a date 
+  
+BOM_rainfall$DayMonth <- paste(BOM_rainfall$Day,"/",BOM_rainfall$Month)
+BOM_rainfall$Date <- paste(BOM_rainfall$DayMonth,"/",BOM_rainfall$Year)
+
+# Parse as date 
+
+BOM_rainfall <- BOM_rainfall %>%
+   mutate(Date=as.Date(Date,format = "%d / %m / %Y"))
+
+# Filter dates for those we want to plot (1/12/2020 - 7/04/2023)
+
+
+rain_study_period <- BOM_rainfall %>% filter(between(Date, as.Date('2020-12-01'), as.Date('2023-04-10')))
+
+```
+
+Plot of rain over all study period 
+
+```{r}
+
+rain_study_period$Rainfall.amount..millimetres.
+
+ggplot(rain_study_period, aes(Date,Rainfall.amount..millimetres.)) +
+  geom_col(colour = "grey39") +
+  scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y") + 
+  scale_y_continuous(breaks = seq(0,150,25)) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) 
+
+
+```
+
+3-month statistics preceding ecological monitoring time point:
+April 2021: 30/03/21 - 6/04/22
+April 2022: 10/04/22 - 15/04/22
+September 2022: 11/09/22 - 16/09/22
+December 2022: 7/12/22 - 11/12/22
+April 2023: 29/04/22 - 2/04/22
+
+```{r}
+
+
+rain_April_21 <- BOM_rainfall %>% filter(between(Date, as.Date('2020-12-30'), as.Date('2021-03-30')))
+# Cumulative 
+summarise(rain_April_21, total = sum(Rainfall.amount..millimetres., na.rm = T))
+
+
+rain_April_22 <- BOM_rainfall %>% filter(between(Date, as.Date('2022-01-10'), as.Date('2022-04-10')))
+# Cumulative
+summarise(rain_April_22, total = sum(Rainfall.amount..millimetres., na.rm = T))
+
+rain_Sept_22 <- BOM_rainfall %>% filter(between(Date, as.Date('2022-06-11'), as.Date('2022-09-11')))
+# Cumulative 
+summarise(rain_Sept_22, total = sum(Rainfall.amount..millimetres., na.rm = T))
+
+rain_Dec_22 <- BOM_rainfall %>% filter(between(Date, as.Date('2022-09-07'), as.Date('2022-12-7')))
+# Cumulative 
+summarise(rain_Dec_22, total = sum(Rainfall.amount..millimetres., na.rm = T))
+
+rain_April_23 <- BOM_rainfall %>% filter(between(Date, as.Date('2022-12-29'), as.Date('2023-03-29')))
+# Cumulative 
+summarise(rain_April_23, total = sum(Rainfall.amount..millimetres., na.rm = T))
+
+
+```
+
+
+# SST 
+
+```{r}
+
+str(SST)
+
+# Join Day Month Year columns to make a date 
+  
+SST$DayMonth <- paste(SST$DD,"/",SST$MM)
+SST$Date <- paste(SST$DayMonth,"/",SST$YYYY)
+
+# Parse as date 
+
+SST <- SST %>%
+   mutate(Date =as.Date(Date,format = "%d / %m / %Y"))
+
+# Filter dates for those we want to plot (1/12/2020 - 7/04/2023)
+
+SST_study_period <- SST %>% filter(between(Date, as.Date('2020-12-01'), as.Date('2023-04-10')))
+
+```
+
+Plot 
+
+```{r}
+
+SST_study_period$DHW_from_90th_HS.1
+
+
+ggplot(SST_study_period, aes(Date,DHW_from_90th_HS.1)) +
+  geom_line(colour = "red") +
+  scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y") + 
+  scale_y_continuous(breaks = seq(0,12,2)) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) 
+
+SST_study_period$SST_MAX
+
+ggplot(SST_study_period, aes(Date,SST_MAX)) +
+  geom_line(colour = "black") +
+  scale_x_date(date_breaks = "1 month", date_labels =  "%b %Y") + 
+  scale_y_continuous(breaks = seq(18,26,1)) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=60, hjust=1)) 
+
+```
+
+3-month statistics preceeding ecological monitoring time point 
+
+```{r}
+
+SST_April_21 <- SST %>% filter(between(Date, as.Date('2020-12-30'), as.Date('2021-03-30')))
+# Cumulative 
+summarise(SST_April_21, total = max(DHW_from_90th_HS.1, na.rm = T))
+
+SST_April_22 <- SST %>% filter(between(Date, as.Date('2022-01-10'), as.Date('2022-04-10')))
+# Cumulative
+summarise(SST_April_22, total = max(DHW_from_90th_HS.1, na.rm = T))
+
+SST_Sept_22 <- SST %>% filter(between(Date, as.Date('2022-06-11'), as.Date('2022-09-11')))
+# Cumulative 
+summarise(SST_Sept_22, total = max(DHW_from_90th_HS.1, na.rm = T))
+
+SST_Dec_22 <- SST %>% filter(between(Date, as.Date('2022-09-07'), as.Date('2022-12-7')))
+# Cumulative 
+summarise(SST_Dec_22, total = max(DHW_from_90th_HS.1, na.rm = T))
+
+SST_April_23 <- SST %>% filter(between(Date, as.Date('2022-12-29'), as.Date('2023-03-29')))
+# Cumulative 
+summarise(SST_April_23, total = max(DHW_from_90th_HS.1, na.rm = T))
+
+
+```
+
+

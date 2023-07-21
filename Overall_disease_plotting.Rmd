@@ -15,6 +15,30 @@ library(dplyr)
 library(tidyr)
 library(multcomp)
 library(stringr)
+# Libraries 
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(multcomp)
+library(lme4)
+library(effects)
+library(lmerTest)
+library(afex)
+library(car)
+library(magrittr)
+library(ggeffects)
+library(sjmisc)
+library(splines)
+library(glmmTMB)
+library(DHARMa)
+library(devtools)
+library(pbkrtest)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(MASS)
+library(lsmeans)
+library(MuMIn)
 
 discem <- read.csv("Cem_diseases.csv")
 
@@ -59,7 +83,73 @@ lagoon_syndromes
 
 ```
 
-# EB and SB and CEM 
+# Model - Syndrome like diseases over time. 
+
+```{r}
+
+
+moda <- glm(Total_prop ~ Site * Month, weights = abundance, family = binomial(), data=dissyndrome)
+
+simulationOutput <- simulateResiduals(fittedModel = moda, plot = F)
+residuals(simulationOutput)
+
+plot(simulationOutput)
+
+testZeroInflation(simulationOutput)
+testDispersion(simulationOutput) 
+
+summary(moda)
+Anova(moda)
+
+# Site x Month interaction 
+# Site x Acro cover 
+# Month x Acro cover 
+
+library(MuMIn)
+r.squaredGLMM(moda)
+
+library(lsmeans)
+lsmeans(moda, pairwise ~  Month, adjust = "Tukey")
+lsmeans(moda, pairwise ~  Site, adjust = "Tukey")
+
+lsmeans(moda, pairwise ~ Month | Site, adjust = "Tukey")
+lsmeans(moda, pairwise ~ Site | Month, adjust = "Tukey")
+```
+
+Plotting 
+
+```{r}
+
+# Errors dot plot 
+
+acro_all_paling <- paling_prev_nozero %>% group_by(Month) %>%
+  summarise(mean = mean(Paling_prev_prop, na.rm = TRUE),
+            sd = sd(Paling_prev_prop, na.rm = TRUE),
+            n = sum(!is.na(Paling_prev_prop)),
+            se = sd/sqrt(n))
+
+acro_all_paling$Month <- factor(acro_all_paling$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+ggplot(acro_all_paling, aes(x=Month, y=mean)) + 
+    geom_point(position = position_dodge(0.8), colour = "#960019") +
+  geom_line() +
+    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8), colour = "#960019") +
+    scale_y_continuous(limits = c(0,0.4)) +
+  theme_bw() 
+
+
+
+
+
+
+
+
+```
+
+
+
+
+# CEM 
 ```{r}
 
 acro_syndrome_dis_prev <- discem  %>%
@@ -128,106 +218,162 @@ ggplot(acro_GA_plotting , aes(x=Month, y=mean)) +
 # Acute 
 
 ```{r}
-
-acro_acute_dis_prev <- disecol  %>%
-  group_by(Month,Survey,Acute) %>%
+# DP
+acro_acute_dis_prev <- discem  %>%
+  group_by(Month,Acute) %>%
   summarise (n = n()) %>%
   mutate(freq = n / sum(n)) %>%
   mutate(prop = freq*100)
 
 acro_acute_dis_prev_dis <- filter(acro_acute_dis_prev, Acute == "Diseased")
 
-# Errors dot plot 
-acro_acute_plotting <- acro_acute_dis_prev_dis %>% group_by(Month) %>%
+acro_acute_months <- acro_acute_dis_prev_dis %>% group_by(Month) %>%
   summarise(mean = mean(prop, na.rm = TRUE),
             sd = sd(prop, na.rm = TRUE),
             n = sum(!is.na(prop)),
             se = sd/sqrt(n))
 
-x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+acro_acute <- acro_acute_dis_prev_dis %>% ungroup() %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
 
-acro_acute_plotting$Month <- factor(acro_acute_plotting$Month, levels = x)
+# DS
 
-ggplot(acro_acute_plotting , aes(x=Month, y=mean)) + 
-    geom_point() +
-    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
-    scale_y_continuous(limits = c(0,100)) +
-    theme_bw() +
-   scale_colour_manual(values =  c("grey4"))
+acute_sev_month <- discem %>% filter(Acute == "Diseased") %>% group_by(Month) %>%
+  summarise(mean = mean(Severity, na.rm = TRUE),
+            sd = sd(Severity, na.rm = TRUE),
+            n = sum(!is.na(Severity)),
+            se = sd/sqrt(n))
+
+acute_sev_month
+
+acute_sev <- discem %>% filter(Acute == "Diseased") %>% ungroup() %>%
+  summarise(mean = mean(Severity, na.rm = TRUE),
+            sd = sd(Severity, na.rm = TRUE),
+            n = sum(!is.na(Severity)),
+            se = sd/sqrt(n))
+
+acute_sev
 
 ```
 
-# Paling WS
+Paling WS with Tissue Loss
 
 ```{r}
 
-acro_chronic_dis_prev <- disecol  %>%
-  group_by(Month,Site,Survey,Chronic) %>%
+# DP
+acro_chronic_dis_prev <- discem  %>%
+  group_by(Month,Chronic) %>%
   summarise (n = n()) %>%
   mutate(freq = n / sum(n)) %>%
   mutate(prop = freq*100)
 
 acro_chronic_dis_prev_dis <- filter(acro_chronic_dis_prev, Chronic == "Diseased")
 
-
-# Errors dot plot 
-acro_chronic_plotting <- acro_chronic_dis_prev_dis %>% group_by(Month,Site) %>%
+acro_chronic_months <- acro_chronic_dis_prev_dis %>% group_by(Month) %>%
   summarise(mean = mean(prop, na.rm = TRUE),
             sd = sd(prop, na.rm = TRUE),
             n = sum(!is.na(prop)),
             se = sd/sqrt(n))
 
-x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+acro_chronic_months
 
-acro_chronic_plotting$Month <- factor(acro_chronic_plotting$Month, levels = x)
+acro_chronic <- acro_chronic_dis_prev_dis %>% ungroup() %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+acro_chronic
+# DS
 
-y <- c("SB","EB","Cem")
+chronic_sev_month <- discem %>% filter(Chronic == "Diseased") %>% group_by(Month) %>%
+  summarise(mean = mean(Severity, na.rm = TRUE),
+            sd = sd(Severity, na.rm = TRUE),
+            n = sum(!is.na(Severity)),
+            se = sd/sqrt(n))
+chronic_sev_month
 
-acro_chronic_plotting$Site <- factor(acro_chronic_plotting$Site, levels = y)
+chronic_sev <- discem %>% filter(Chronic == "Diseased") %>% ungroup() %>%
+  summarise(mean = mean(Severity, na.rm = TRUE),
+            sd = sd(Severity, na.rm = TRUE),
+            n = sum(!is.na(Severity)),
+            se = sd/sqrt(n))
+chronic_sev
 
-ggplot(acro_chronic_plotting , aes(x=Month, y=mean, color = Site)) + 
-    geom_point() +
-    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
-    scale_y_continuous(limits = c(0,100)) +
-    facet_wrap(~Site) +
-    theme_bw() +
-   scale_colour_manual(values =  c("gray75","grey32","grey4"))
 
 ```
-Paling Syndrome
+
+
+Colony-wide Paling 
 ```{r}
 
-acro_pale_dis_prev <- disecol  %>%
-  group_by(Month,Site,Survey,Paling) %>%
+acro_pale_dis_prev <- discem  %>%
+  group_by(Month,Paling) %>%
   summarise (n = n()) %>%
   mutate(freq = n / sum(n)) %>%
   mutate(prop = freq*100)
 
 acro_pale_dis_prev_dis <- filter(acro_pale_dis_prev, Paling == "Yes")
 
+acro_pale_dis_prev_dis
 
-# Errors dot plot 
-acro_pale_plotting <- acro_pale_dis_prev_dis %>% group_by(Month,Site) %>%
+acro_pale_dis_whole <- discem  %>%
+  group_by(Paling) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_pale_dis_whole
+
+```
+
+Growth Anomaly
+```{r}
+
+
+# DP
+acro_GA_dis_prev <- discem  %>%
+  group_by(Month,GA) %>%
+  summarise (n = n()) %>%
+  mutate(freq = n / sum(n)) %>%
+  mutate(prop = freq*100)
+
+acro_GA_dis_prev_dis <- filter(acro_GA_dis_prev, GA == "Yes")
+
+acro_GA_months <- acro_GA_dis_prev_dis %>% group_by(Month) %>%
   summarise(mean = mean(prop, na.rm = TRUE),
             sd = sd(prop, na.rm = TRUE),
             n = sum(!is.na(prop)),
             se = sd/sqrt(n))
 
-x <- c("2021_April","2022_April","2022_September","2022_December","2023_April")
+acro_GA_months
 
-acro_pale_plotting$Month <- factor(acro_pale_plotting$Month, levels = x)
+acro_GA<- acro_GA_dis_prev_dis %>% ungroup() %>%
+  summarise(mean = mean(prop, na.rm = TRUE),
+            sd = sd(prop, na.rm = TRUE),
+            n = sum(!is.na(prop)),
+            se = sd/sqrt(n))
+acro_GA
+# DS
 
-y <- c("SB","EB","Cem")
+GA_sev_month <- discem %>% filter(GA == "Yes") %>% group_by(Month) %>%
+  summarise(mean = mean(GA_area, na.rm = TRUE),
+            sd = sd(GA_area, na.rm = TRUE),
+            n = sum(!is.na(GA_area)),
+            se = sd/sqrt(n))
+GA_sev_month
 
-acro_pale_plotting$Site <- factor(acro_pale_plotting$Site, levels = y)
+GA_sev <- discem %>% filter(GA == "Yes") %>% ungroup() %>%
+  summarise(mean = mean(GA_area, na.rm = TRUE),
+            sd = sd(GA_area, na.rm = TRUE),
+            n = sum(!is.na(GA_area)),
+            se = sd/sqrt(n))
+GA_sev
 
-ggplot(acro_pale_plotting , aes(x=Month, y=mean, color = Site)) + 
-    geom_point() +
-    geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1) +
-    scale_y_continuous(limits = c(0,100)) +
-    facet_wrap(~Site) +
-    theme_bw() +
-   scale_colour_manual(values =  c("gray75","grey32","grey4"))
+
+
 
 ```
 

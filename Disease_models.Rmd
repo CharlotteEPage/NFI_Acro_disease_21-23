@@ -90,6 +90,8 @@ moda <- glm(Paling_prev_prop ~ Site * Month + Acropora_cover, weights = abundanc
 simulationOutput <- simulateResiduals(fittedModel = moda, plot = F)
 residuals(simulationOutput)
 
+testZeroInflation(simulationOutput)
+
 plot(simulationOutput)
 
 summary(moda)
@@ -137,7 +139,10 @@ Paling WS with Tissue Loss
 
 # Calculate mean prevalence across the whole lagoon at each time point 
 
-str(chronic_prev_nozero)
+# Remove 0 weights from datasets 
+
+chronic_prev_nozero <- chronic_prev_modelling[chronic_prev_modelling$abundance != 0, ]    
+
 chronic_prev_nozero %>% ungroup() %>% summarise(mean_lagoon = mean(Chronic_prev_prop, na.rm = TRUE),
           n = sum(!is.na(Chronic_prev_prop)),
           sd = sd(Chronic_prev_prop, na.rm = TRUE),
@@ -161,9 +166,7 @@ str(chronic_prev_modelling)
 
 chronic_prev_modelling$abundance <- as.numeric(chronic_prev_modelling$abundance)
 
-# Remove 0 weights from datasets 
 
-chronic_prev_nozero <- chronic_prev_modelling[chronic_prev_modelling$abundance != 0, ]    
 
 chronic_prev_nozero$Month <- as.factor(chronic_prev_nozero$Month)
 chronic_prev_nozero$Site <- as.factor(chronic_prev_nozero$Site)
@@ -173,6 +176,8 @@ mod1 <- glm(Chronic_prev_prop ~ Site * Month + Acropora_cover, weights = abundan
 
 simulationOutput <- simulateResiduals(fittedModel = mod1, plot = F)
 residuals(simulationOutput)
+
+testZeroInflation(simulationOutput)
 
 plot(simulationOutput)
 
@@ -201,6 +206,7 @@ acro_chronic_lagoon_filtered_plot <- chronic_prev_nozero%>% group_by(Month,Site)
           se = sd/sqrt(n))
 
 acro_chronic_lagoon_filtered_plot$Month <- factor(acro_chronic_lagoon_filtered_plot$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+acro_chronic_lagoon_filtered_plot$Site <- factor(acro_chronic_lagoon_filtered_plot$Site, levels = c("SB","EB"))
 
 ggplot(acro_chronic_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
     geom_point(position = position_dodge(0.8)) +
@@ -273,6 +279,8 @@ acro_acute_lagoon_filtered_plot <- acute_prev_nozero %>% group_by(Month,Site) %>
             se = sd/sqrt(n))
 
 acro_acute_lagoon_filtered_plot$Month <- factor(acro_acute_lagoon_filtered_plot$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+acro_acute_lagoon_filtered_plot$Site <- factor(acro_acute_lagoon_filtered_plot$Site, levels = c("SB","EB"))
 
 ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
     geom_point(position = position_dodge(0.8)) +
@@ -470,6 +478,9 @@ Plotting
 
 chronic_sev_modelling$Month <- factor(chronic_sev_modelling$Month, levels = c("2021_April","2022_April","2022_September","2022_December","2023_April"))
 
+chronic_sev_modelling$Site <- factor(chronic_sev_modelling$Site, levels = c("SB","EB"))
+
+
 ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
     geom_point(position = position_dodge(0.8)) +
     geom_errorbar(aes(ymin=mean-se, ymax=mean+se), width=.1,position = position_dodge(0.8)) +
@@ -558,6 +569,8 @@ r.squaredGLMM(model_4)
 ```{r}
 
 acute_sev_modelling$Month <- factor(acute_sev_modelling$Month, levels = c("April_2021","April_2022","Sept_2022","Dec_2022","April_2023"))
+
+acute_sev_modelling$Site <- factor(acute_sev_modelling$Site, levels = c("SB","EB"))
 
 ggplot(acro_acute_lagoon_filtered_plot, aes(x=Month, y=mean, color = Site)) + 
     geom_point(position = position_dodge(0.8)) +
@@ -655,4 +668,5 @@ ggplot(GA_sev_modelling, aes(x=Month, y=GA_area)) +
   scale_color_manual(values =  c("#b2dbed", "#42b0cc"))
 
 ```
+
 
